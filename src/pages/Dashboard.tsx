@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, where, getDocs, addDoc, onSnapshot, doc, updateDoc, orderBy, limit } from 'firebase/firestore';
 import { useAuth } from '../hooks/useAuth';
 import { cn } from '../lib/utils';
@@ -64,38 +64,7 @@ export function Dashboard() {
 
   useEffect(() => {
     fetchData();
-    handlePaymentSuccess();
   }, [user]);
-
-  const handlePaymentSuccess = async () => {
-    const success = searchParams.get('success');
-    const courseId = searchParams.get('courseId');
-    const amount = searchParams.get('amount');
-
-    if (success === 'true' && courseId && user) {
-      try {
-        await addDoc(collection(db, 'enrollments'), {
-          userId: user.uid,
-          courseId,
-          progress: 0,
-          createdAt: new Date()
-        });
-
-        await addDoc(collection(db, 'transactions'), {
-          userId: user.uid,
-          amount: Number(amount),
-          type: 'course_purchase',
-          courseId,
-          createdAt: new Date()
-        });
-
-        setSearchParams({});
-        fetchData();
-      } catch (e) {
-        console.error('Error recording payment success:', e);
-      }
-    }
-  };
 
   const fetchData = async () => {
     if (!user) return;
@@ -139,9 +108,11 @@ export function Dashboard() {
   const handleStripeCheckout = async (course: any) => {
     if(!user) return;
     try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error('Inicia sesión para comprar.');
       const resp = await fetch('/api/create-checkout-session', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
         body: JSON.stringify({
           courseId: course.id,
           userId: user.uid,
@@ -149,10 +120,13 @@ export function Dashboard() {
           title: course.title
         })
       });
+      if (!resp.ok) throw new Error('Los pagos están temporalmente deshabilitados mientras se valida la pasarela.');
       const { url } = await resp.json();
+      if (!url) throw new Error('No se recibió una URL de pago válida.');
       window.location.href = url;
     } catch(e) {
       console.error('Stripe Redirect Error:', e);
+      alert('La pasarela de pago aún no está habilitada para producción.');
     }
   };
 
@@ -593,9 +567,11 @@ export function Journal() {
         Nudge: [Tu sugerencia de acción proactiva]
       `;
 
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error('Inicia sesión para utilizar KIRA IA.');
       const res = await fetch('/api/ai/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
         body: JSON.stringify({ prompt: analyticPrompt })
       });
 

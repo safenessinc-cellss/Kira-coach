@@ -1,93 +1,45 @@
-<<<<<<< HEAD
-# KIRA 2.1 Unificada — by Safeness Inc.
+# KIRA 2.1 Unificada — SAFENESS.INC
 
-Plataforma SaaS integral de educación, bienestar adaptativo, coaching ontológico y CRM con Inteligencia Artificial.
+Aplicación principal de **KIRA Coach** para https://kira.coach. Stack: React 19, TypeScript, Vite, Tailwind CSS, Firebase Authentication, Cloud Firestore y backend Express.
 
-> **© 2026 Safeness Inc. Todos los derechos reservados.**  
-> *KIRA 2.1 · Plataforma de bienestar, coaching e inteligencia artificial.*
-
----
-
-## 🚀 Inicio Rápido en Desarrollo
-
+## Desarrollo
 ```bash
-# 1. Instalar dependencias
 npm install
-
-# 2. Iniciar servidor full-stack (Express + Vite)
 npm run dev
-
-# 3. Compilar para producción
 npm run build
 ```
-
 El servidor local inicia en `http://localhost:3000`.
 
----
+## Firebase de KIRA2.1
+Esta rama apunta al proyecto Firebase de referencia `kira2-a6a20`. La configuración Web de Firebase está en `firebase-applet-config.json`; esos valores son identificadores públicos de cliente, no claves privadas. La seguridad depende de Authentication, Firestore Rules, restricciones de API key y validación de tokens en el servidor.
 
-## 👥 Portales y Roles Disponibles
+1. En Firebase Authentication, habilita Google y añade `kira.coach`, `www.kira.coach` y los dominios Preview necesarios a Authorized domains.
+2. En Google Cloud, restringe la API key Web a los dominios de KIRA y a las APIs Firebase necesarias.
+3. Configura secretos de backend en Vercel usando `.env.example` como inventario. Nunca pongas secretos en variables `VITE_*` ni en archivos versionados.
+4. Prueba reglas con el emulador antes de aplicarlas:
+   ```bash
+   firebase use kira2-a6a20
+   firebase emulators:exec --only firestore,storage --project demo-kira-rules "npm run test:rules"
+   firebase deploy --only firestore:rules,storage
+   ```
+5. Los diarios son privados para su propietario. Los roles Coach/Admin no se conceden desde el navegador. Las matrículas pagadas, ventas y transacciones solo se registran desde un backend/webhook confiable.
 
-La aplicación cuenta con 4 roles protegidos con navegación exclusiva:
+## Roles y acceso
+- Alumno: acceso a su propio aprendizaje, cursos y diario.
+- Coach: solo después de aprobación administrativa.
+- Admin: cuenta propietaria verificada `safeness.c.a@gmail.com`.
+- HR: solo mediante asignación administrativa; no hay selector público de rol HR.
 
-1. **Alumno (`/dashboard`):**
-   - Plan Maestro de aprendizaje y cursos activos.
-   - Journaling Emocional con IA contextual.
-   - Bóveda Élite con microaprendizaje, mandalas interactivos y coaching ontológico.
-   - Directorio de coaches con filtros por especialidad e idioma.
-   - Certificados oficiales con verificación pública en `/verify/:certId`.
-   - Hub de Bienestar con detector anticipatorio de burnout.
-   - Medallas de Consciencia y niveles de energía (Bronce, Plata, Oro, Platino).
+El selector de acceso permite solicitar Alumno o Coach, pero una solicitud Coach queda pendiente y no concede permisos.
 
-2. **Coach (`/coach`):**
-   - Academic Command Center con ingresos netos y liquidaciones.
-   - Constructor curricular con drag-and-drop (`@dnd-kit`).
-   - Session Intelligence con análisis prosódico de audio y resumen longitudinal.
-   - Coach Copilot para diseño de módulos y preguntas ontológicas.
-   - Nexus de trazabilidad de estudiantes (sin acceso a journals privados).
-   - Chat 1-a-1 con alumnos inscritos.
+## IA, pagos y voz
+Las solicitudes de IA requieren Firebase ID token y tienen límite por usuario. La clave Gemini permanece en el servidor y no se inyecta en el bundle. La voz Gemini Live en navegador se mantiene desactivada hasta implementar un gateway de voz con credenciales efímeras.
+Los endpoints de checkout permanecen deshabilitados hasta validar precios desde Firestore, implementar webhooks firmados e idempotencia. No se simulan cobros ni se registran ventas desde el cliente.
 
-3. **Super Admin (`/admin`):**
-   - Centro de Mando Ejecutivo con split 70/30 (Kira Net vs Coach Payouts).
-   - Cola de aprobación de coaches con otorgamiento de prueba de 30 días.
-   - Aprobación y revocación de certificados con emisión manual.
-   - Consola de pagos (Stripe & Mercado Pago) con reembolsos y liquidaciones.
-   - Moderación de mensajes y auditoría inmutable de usuarios.
-   - Personalización White-Label en vivo (colores, logo y nombre).
-   - Business Insights IA con caché de 1 hora.
+## Storage
+Se añadieron reglas para los prefijos identificados en la aplicación: `website`, `promotions`, `marketplace/pdfs`, `pills/audio`, `coaches/{uid}` y `courses/{uid}`. Las cargas de sitio y catálogo quedan reservadas al administrador; los archivos de Coach/Cursos requieren que el Coach autenticado sea propietario y esté aprobado. Se aplican límites de tamaño y tipo MIME. Si se incorpora otro `folderPath`, debe añadirse una regla explícita antes de usarlo en producción.
 
-4. **HR / B2B (`/hr`):**
-   - Portal corporativo con métricas agregadas de bienestar, licencias y burnout sin comprometer la privacidad individual.
+## Vercel y dominio
+Build: `npm run build`; salida: `dist`; API Node: `server.ts`. Asocia `kira.coach` y `www.kira.coach` al proyecto Vercel correcto, valida DNS/TLS y ejecuta smoke tests. Cambiar archivos del repositorio no reasigna automáticamente el dominio.
 
----
-
-## 🫁 Protocolo de Calma Proactivo
-
-Accesible en todas las rutas autenticadas mediante el botón flotante **"🫁 Calma"**:
-- **Respira conmigo:** Ciclo guiado de 2 minutos (4s inhalación, 7s retención, 8s exhalación).
-- **Hablar con coach de guardia:** Conexión prioritaria con un mentor disponible.
-- **Silenciar métricas 24h:** Modo descanso que suspende alertas de estrés y exigencia diaria.
-
----
-
-## ⚙️ Variables de Entorno & Placeholders Pendientes para Producción
-
-Copia `.env.example` a `.env` y configura tus credenciales reales:
-
-| Variable | Descripción | Estado Actual / Placeholder |
-| :--- | :--- | :--- |
-| `GEMINI_API_KEY` | Llave de API de Google Gen AI para Gemini 2.5 Flash y Pro | Configurada en el entorno de AI Studio |
-| `STRIPE_SECRET_KEY` | Clave secreta de Stripe para cobros reales | Modo simulador activo si no se suministra |
-| `MERCADOPAGO_ACCESS_TOKEN` | Token de acceso de Mercado Pago para pagos locales | Modo simulación activo |
-| `VITE_FIREBASE_API_KEY` | Credenciales de Firebase Auth y Firestore | Conectado a proyecto `ai-studio-ae1b95fe-...` |
-| `SAFENESS_PUBLIC_URL` | URL oficial de la organización | Placeholder: `https://safeness.inc` |
-
----
-
-## 🛡️ Seguridad y Privacidad Zero-Leak
-
-- Los journals personales de los alumnos nunca se exponen al Portal HR ni a los Coaches.
-- Las trazas de auditoría (`activity_logs`) registran únicamente metadatos operacionales sin almacenar texto confidencial.
-- Toda transacción procesada incluye verificación de idempotencia y cálculo del split de liquidación (70/30).
-=======
-# Kira-coach
->>>>>>> 0c3cb891df6064be99dd908761c5c6e6a3ff0e1a
+No publiques esta rama hasta cerrar configuración de secretos, reglas, Storage, pagos y pruebas E2E. Este trabajo no modifica producción.

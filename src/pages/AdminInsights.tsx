@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { auth } from '../firebase';
 import { Lightbulb, Sparkles, TrendingUp, AlertTriangle, Users, ArrowRight, RefreshCw } from 'lucide-react';
 
 export function AdminInsights() {
@@ -30,7 +31,9 @@ export function AdminInsights() {
   const handleRefresh = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/ai/business-insights', { method: 'POST' });
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error('Inicia sesión como administrador.');
+      const res = await fetch('/api/ai/business-insights', { method: 'POST', headers: { Authorization: `Bearer ${idToken}` } });
       if (res.ok) {
         const data = await res.json();
         if (data.summary) {
