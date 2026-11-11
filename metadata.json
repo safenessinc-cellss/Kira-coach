@@ -1,0 +1,10 @@
+{
+  "name": "Remix: KIRA2.1",
+  "description": "Plataforma SaaS, Marketplace de bienestar y CRM con IA integrada.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
