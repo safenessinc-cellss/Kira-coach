@@ -103,7 +103,7 @@ export default function App() {
                     <Route element={<ProtectedRoute allowedRoles={['coach', 'admin']} />}>
                       <Route element={<DashboardLayout title="Panel de Coach" />}>
                         <Route path="/coach" element={<CoachDashboard />} />
-                        <Route path="/coach/courses" element={<CoachDashboard />} />
+                        <Route path="/coach/courses" element={<CoachCourses />} />
                         <Route path="/coach/session" element={<SessionIntelligence />} />
                         <Route path="/coach/homework" element={<CoachHomeworkReview />} />
                         <Route path="/coach/crm-audit" element={<CoachCrmAudit />} />
@@ -127,6 +127,7 @@ export default function App() {
                     </Route>
       
                   </Route>
+                  <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
                 <PerformanceMonitor />
               </Suspense>
