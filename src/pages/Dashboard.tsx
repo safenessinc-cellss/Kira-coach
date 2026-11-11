@@ -67,36 +67,6 @@ export function Dashboard() {
     handlePaymentSuccess();
   }, [user]);
 
-  const handlePaymentSuccess = async () => {
-    const success = searchParams.get('success');
-    const courseId = searchParams.get('courseId');
-    const amount = searchParams.get('amount');
-
-    if (success === 'true' && courseId && user) {
-      try {
-        await addDoc(collection(db, 'enrollments'), {
-          userId: user.uid,
-          courseId,
-          progress: 0,
-          createdAt: new Date()
-        });
-
-        await addDoc(collection(db, 'transactions'), {
-          userId: user.uid,
-          amount: Number(amount),
-          type: 'course_purchase',
-          courseId,
-          createdAt: new Date()
-        });
-
-        setSearchParams({});
-        fetchData();
-      } catch (e) {
-        console.error('Error recording payment success:', e);
-      }
-    }
-  };
-
   const fetchData = async () => {
     if (!user) return;
     try {
