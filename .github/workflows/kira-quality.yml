@@ -37,4 +37,4 @@ jobs:
       - name: Install Firestore test tooling
         run: npm install --no-save --package-lock=false --legacy-peer-deps @firebase/rules-unit-testing firebase-tools
       - name: Test Firestore rules
-        run: npx firebase emulators:exec --only firestore --project demo-kira-rules "npm run test:rules"
+        run: npx firebase emulators:exec --only firestore,storage --project demo-kira-rules "npm run test:rules"
