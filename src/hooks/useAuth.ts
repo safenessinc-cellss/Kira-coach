@@ -45,15 +45,10 @@ export function useAuth() {
               if (docSnap.exists()) {
                 const firestoreData = docSnap.data();
                 
-                let currentRole = firestoreData.role as UserRole;
-                if (u.email === 'safeness.c.a@gmail.com' && currentRole !== 'admin') {
-                  currentRole = 'admin';
-                  try {
-                    await updateDoc(docRef, { role: 'admin' });
-                  } catch (e) {
-                    console.error("Failed to force admin role", e);
-                  }
-                }
+                // The owner identity may unlock the admin UI, but this client never writes
+                // privileged roles. Firestore Rules and trusted server IAM remain authoritative.
+                const isWhitelistedAdmin = u.email?.toLowerCase() === 'safeness.c.a@gmail.com';
+                const currentRole = (isWhitelistedAdmin ? 'admin' : firestoreData.role) as UserRole;
 
                 // If displayName is the email username, override it to 'Kira Coach' for the safeness email
                 let resolvedDisplayName = firestoreData.displayName || firestoreData.name || userData.displayName || '';
@@ -90,7 +85,9 @@ export function useAuth() {
                 }
               } else {
                 const isWhitelistedAdmin = u.email?.toLowerCase() === 'safeness.c.a@gmail.com';
-                const newRole = isWhitelistedAdmin ? 'admin' : (requestedRole === 'coach' ? 'coach' : 'alumno');
+                // A role selected in the browser is only a request, never a privilege grant.
+                // New non-owner accounts start as pending students until an administrator approves them.
+                const newRole = isWhitelistedAdmin ? 'admin' : 'alumno';
                 const initialApprovalStatus = isWhitelistedAdmin ? 'approved' : 'pending';
                 
                 const newUser = {
@@ -99,6 +96,7 @@ export function useAuth() {
                   displayName: u.displayName || requestedName || (u.email?.toLowerCase() === 'safeness.c.a@gmail.com' ? 'Kira Coach' : (u.email?.split('@')[0] || '')),
                   photoURL: u.photoURL || '',
                   role: newRole,
+                  requestedRole: isWhitelistedAdmin ? 'alumno' : (requestedRole === 'coach' ? 'coach' : 'alumno'),
                   approvalStatus: initialApprovalStatus,
                   theme: 'teal',
                   isEmailVerified: u.emailVerified,
@@ -112,7 +110,7 @@ export function useAuth() {
                 setUser({ ...userData, ...newUser });
                 
                 if (!isWhitelistedAdmin) {
-                  alert(`¡Gracias por registrarte! Tu cuenta de ${newRole === 'coach' ? 'Coach' : 'Alumno'} está pendiente de aprobación por un administrador.`);
+                  alert(`¡Gracias por registrarte! Tu solicitud de acceso como ${requestedRole === 'coach' ? 'Coach' : 'Alumno'} está pendiente de aprobación por un administrador.`);
                 }
               }
             } catch (err) {
