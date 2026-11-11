@@ -2,9 +2,9 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
-import Stripe from "stripe";
 import { z } from "zod";
 import { GoogleGenAI } from "@google/genai";
+import { verify as verifySignature } from "node:crypto";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,17 +13,6 @@ const __dirname = path.dirname(__filename);
 const apiKey = process.env.GEMINI_API_KEY || "";
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 const GEMINI_MODEL = "gemini-3.8-flash";
-
-// Lazy Stripe Initialization
-let stripeClient: Stripe | null = null;
-function getStripe() {
-  if (!stripeClient && process.env.STRIPE_SECRET_KEY) {
-    stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: "2025-01-27" as any,
-    });
-  }
-  return stripeClient;
-}
 
 // In-memory caches
 const aiCache = new Map<string, { data: any; expiry: number }>();
@@ -36,90 +25,112 @@ function setCache(key: string, data: any, ttlMs: number) {
   aiCache.set(key, { data, expiry: Date.now() + ttlMs });
 }
 
+
+type VerifiedFirebaseUser = { uid: string; email?: string; emailVerified: boolean };
+const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || "kira2-a6a20";
+let firebasePublicKeys: Record<string, string> = {};
+let firebaseKeysExpiresAt = 0;
+const apiRateLimits = new Map<string, { count: number; resetAt: number }>();
+
+async function verifyFirebaseIdToken(token: string): Promise<VerifiedFirebaseUser | null> {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const header = JSON.parse(Buffer.from(parts[0], "base64url").toString("utf8"));
+    const claims = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+    const now = Math.floor(Date.now() / 1000);
+    if (header.alg !== "RS256" || !header.kid ||
+        claims.aud !== FIREBASE_PROJECT_ID ||
+        claims.iss !== `https://securetoken.google.com/${FIREBASE_PROJECT_ID}` ||
+        typeof claims.sub !== "string" || !claims.sub ||
+        !Number.isFinite(claims.exp) || claims.exp <= now ||
+        !Number.isFinite(claims.iat) || claims.iat > now + 300) return null;
+
+    if (Date.now() >= firebaseKeysExpiresAt || !firebasePublicKeys[header.kid]) {
+      const response = await fetch("https://www.googleapis.com/identitytoolkit/v3/relyingparty/publicKeys");
+      if (!response.ok) return null;
+      firebasePublicKeys = await response.json() as Record<string, string>;
+      const cacheControl = response.headers.get("cache-control") || "";
+      const maxAge = Number(cacheControl.match(/max-age=(\d+)/)?.[1] || 3600);
+      firebaseKeysExpiresAt = Date.now() + Math.min(maxAge, 3600) * 1000;
+    }
+    const certificate = firebasePublicKeys[header.kid];
+    if (!certificate) return null;
+    const signedData = Buffer.from(parts[0] + "." + parts[1]);
+    if (!verifySignature("RSA-SHA256", signedData, certificate, Buffer.from(parts[2], "base64url"))) return null;
+    return { uid: claims.sub, email: typeof claims.email === "string" ? claims.email.toLowerCase() : undefined, emailVerified: claims.email_verified === true };
+  } catch {
+    return null;
+  }
+}
+
+async function requireFirebaseUser(req: express.Request, res: express.Response): Promise<VerifiedFirebaseUser | null> {
+  const match = (req.headers.authorization || "").match(/^Bearer\\s+(.+)$/i);
+  if (!match) { res.status(401).json({ error: "Debes iniciar sesión." }); return null; }
+  const user = await verifyFirebaseIdToken(match[1]);
+  if (!user) { res.status(401).json({ error: "La sesión no es válida o ha caducado." }); return null; }
+  const now = Date.now();
+  const limit = apiRateLimits.get(user.uid);
+  if (limit && now < limit.resetAt && limit.count >= 20) {
+    res.status(429).json({ error: "Límite temporal de solicitudes alcanzado. Inténtalo más tarde." });
+    return null;
+  }
+  if (!limit || now >= limit.resetAt) apiRateLimits.set(user.uid, { count: 1, resetAt: now + 60_000 });
+  else limit.count += 1;
+  return user;
+}
+
+async function requireKiraAdmin(req: express.Request, res: express.Response): Promise<VerifiedFirebaseUser | null> {
+  const user = await requireFirebaseUser(req, res);
+  if (!user) return null;
+  if (user.email !== "safeness.c.a@gmail.com" || !user.emailVerified) {
+    res.status(403).json({ error: "Acceso reservado al administrador autorizado." });
+    return null;
+  }
+  return user;
+}
+
 const app = express();
-app.use(express.json({ limit: "10mb" }));
+app.disable("x-powered-by");
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("X-Frame-Options", "DENY");
+  next();
+});
+app.use(express.json({ limit: "2mb" }));
 
 // Health Check
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", app: "KIRA 2.1 Unificada", author: "Safeness Inc." });
 });
 
-// Stripe Checkout Session
-const CheckoutSchema = z.object({
-  courseId: z.string().optional(),
-  userId: z.string().min(1),
-  amount: z.number().positive(),
-  title: z.string().min(1),
-  type: z.enum(["course_purchase", "coach_membership", "vault_unlock"]).default("course_purchase"),
-});
-
+// Payments are deliberately disabled until prices are loaded from trusted Firestore data
+// and signed, idempotent provider webhooks are configured. Never trust client-supplied amounts.
 app.post("/api/create-checkout-session", async (req, res) => {
-  const parsed = CheckoutSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: "Datos de compra inválidos", details: parsed.error.issues });
-  }
-
-  const { courseId, userId, amount, title, type } = parsed.data;
-  const stripe = getStripe();
-
-  if (stripe) {
-    try {
-      const session = await stripe.checkout.sessions.create({
-        payment_method_types: ["card"],
-        line_items: [
-          {
-            price_data: {
-              currency: "usd",
-              product_data: {
-                name: title,
-                metadata: { courseId: courseId || "", type },
-              },
-              unit_amount: Math.round(amount * 100),
-            },
-            quantity: 1,
-          },
-        ],
-        mode: "payment",
-        success_url: `${req.headers.origin}${type === "coach_membership" ? "/coach" : "/dashboard"}?success=true&courseId=${courseId || ""}&amount=${amount}&title=${encodeURIComponent(title)}&type=${type}`,
-        cancel_url: `${req.headers.origin}${type === "coach_membership" ? "/coach" : "/dashboard"}?canceled=true`,
-        client_reference_id: userId,
-        metadata: { userId, courseId: courseId || "", type },
-      });
-      return res.json({ url: session.url });
-    } catch (e: any) {
-      console.error("Stripe Session Error:", e);
-      return res.status(500).json({ error: e.message });
-    }
-  }
-
-  // Fallback simulator for preview
-  const redirectUrl =
-    type === "coach_membership"
-      ? `/coach?success=true&type=coach_membership&amount=${amount}`
-      : `/dashboard?success=true&courseId=${courseId || ""}&amount=${amount}&title=${encodeURIComponent(title)}`;
-
-  res.json({
-    url: redirectUrl,
-    sessionId: `mock_session_${Date.now()}`,
-  });
+  const user = await requireFirebaseUser(req, res);
+  if (!user) return;
+  if (req.body?.userId && req.body.userId !== user.uid) return res.status(403).json({ error: "USER_MISMATCH" });
+  return res.status(503).json({ error: "PAYMENTS_NOT_CONFIGURED", message: "La pasarela se habilitará cuando el precio y el webhook estén validados en el servidor." });
 });
 
-// Mercado Pago Preference
 app.post("/api/mercadopago-preference", async (req, res) => {
-  const { title, price, userId, courseId } = req.body;
-  res.json({
-    init_point: `/dashboard?success=true&courseId=${courseId || ""}&amount=${price || 99}&title=${encodeURIComponent(title || "Curso")}&provider=mercadopago`,
-    id: `mp_pref_${Date.now()}`
-  });
+  const user = await requireFirebaseUser(req, res);
+  if (!user) return;
+  if (req.body?.userId && req.body.userId !== user.uid) return res.status(403).json({ error: "USER_MISMATCH" });
+  return res.status(503).json({ error: "PAYMENTS_NOT_CONFIGURED", message: "Mercado Pago aún no está configurado para producción." });
 });
 
 // AI: Analyze Journal
 const JournalAnalysisSchema = z.object({
-  content: z.string().min(1),
-  mood: z.string().optional(),
+  content: z.string().min(1).max(12000),
+  mood: z.string().max(100).optional(),
 });
 
 app.post("/api/ai/analyze-journal", async (req, res) => {
+  const authenticatedUser = await requireFirebaseUser(req, res);
+  if (!authenticatedUser) return;
+
   const parsed = JournalAnalysisSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Contenido requerido" });
 
@@ -162,7 +173,11 @@ Devuelve un JSON con:
 
 // AI: Analyze Session (Session Intelligence)
 app.post("/api/ai/analyze-session", async (req, res) => {
-  const { messages } = req.body;
+  const authenticatedUser = await requireFirebaseUser(req, res);
+  if (!authenticatedUser) return;
+
+  const { messages } = req.body || {};
+  if (!Array.isArray(messages) || messages.length > 100 || messages.some((m: any) => typeof m?.text !== "string" || m.text.length > 10000)) return res.status(400).json({ error: "Transcripción inválida o demasiado extensa." });
 
   if (ai && Array.isArray(messages)) {
     try {
@@ -216,6 +231,9 @@ Genera un JSON con la estructura:
 
 // AI: Mentor Recommendations (MentorWidget)
 app.post("/api/ai/mentor-recommendations", async (req, res) => {
+  const authenticatedUser = await requireFirebaseUser(req, res);
+  if (!authenticatedUser) return;
+
   const { avgProgress = 0, journalTexts = "", progressList = "", activityData = "", allCourses = [] } = req.body;
 
   if (ai) {
@@ -271,8 +289,11 @@ app.post("/api/ai/mentor-recommendations", async (req, res) => {
 
 // AI: Generic Generate
 app.post("/api/ai/generate", async (req, res) => {
-  const { prompt, systemInstruction, jsonMode = false } = req.body;
-  if (!prompt) return res.status(400).json({ error: "Prompt requerido" });
+  const authenticatedUser = await requireFirebaseUser(req, res);
+  if (!authenticatedUser) return;
+
+  const { prompt, systemInstruction, jsonMode = false } = req.body || {};
+  if (typeof prompt !== "string" || !prompt.trim() || prompt.length > 20000) return res.status(400).json({ error: "Prompt requerido o demasiado extenso." });
 
   if (ai) {
     try {
@@ -301,8 +322,11 @@ app.post("/api/ai/generate", async (req, res) => {
 
 // AI: Chat
 app.post("/api/ai/chat", async (req, res) => {
-  const { messages, context } = req.body;
-  if (!Array.isArray(messages) || messages.length === 0) {
+  const authenticatedUser = await requireFirebaseUser(req, res);
+  if (!authenticatedUser) return;
+
+  const { messages, context } = req.body || {};
+  if (!Array.isArray(messages) || messages.length === 0 || messages.length > 50 || messages.some((m: any) => typeof m?.text !== "string" || m.text.length > 8000) || (typeof context === "string" && context.length > 5000)) {
     return res.status(400).json({ error: "Mensajes requeridos" });
   }
 
@@ -338,6 +362,9 @@ app.post("/api/ai/chat", async (req, res) => {
 
 // AI: Business Insights
 app.post("/api/ai/business-insights", async (req, res) => {
+  const authenticatedUser = await requireKiraAdmin(req, res);
+  if (!authenticatedUser) return;
+
   const cached = getCached("business_insights");
   if (cached) return res.json(cached);
 
