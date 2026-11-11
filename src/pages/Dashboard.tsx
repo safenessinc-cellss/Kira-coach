@@ -64,7 +64,6 @@ export function Dashboard() {
 
   useEffect(() => {
     fetchData();
-    handlePaymentSuccess();
   }, [user]);
 
   const fetchData = async () => {
