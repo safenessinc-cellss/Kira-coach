@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { storage, db, handleFirestoreError, OperationType } from '../firebase';
+import { auth, storage, db, handleFirestoreError, OperationType } from '../firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { doc, getDoc, collection, addDoc, query, where, getDocs, updateDoc, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -78,6 +78,8 @@ export function CoachDashboard() {
   const handleMembershipCheckout = async () => {
     if(!user) return;
     try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error('Inicia sesión para continuar.');
       const resp = await fetch('/api/create-checkout-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -88,10 +90,13 @@ export function CoachDashboard() {
           type: 'coach_membership'
         })
       });
+      if (!resp.ok) throw new Error('Los pagos están temporalmente deshabilitados mientras se valida la pasarela.');
       const { url } = await resp.json();
+      if (!url) throw new Error('No se recibió una URL de pago válida.');
       window.location.href = url;
     } catch(e) {
       console.error('Membership checkout error:', e);
+      alert('La pasarela de pago aún no está habilitada para producción.');
     }
   };
 
