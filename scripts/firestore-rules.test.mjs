@@ -95,6 +95,14 @@ try {
     createdAt: now,
   }));
 
+  const approvedCoachDb = env.authenticatedContext("coach-approved", { email: "coach-approved@example.test", email_verified: true }).firestore();
+  await assertFails(setDoc(doc(approvedCoachDb, "enrollments", "coach-unpaid-enrollment"), {
+    userId: "student-a",
+    courseId: "paid-course",
+    progress: 0,
+    createdAt: now,
+  }));
+
   await assertFails(getDoc(doc(studentDb, "settings", "private-config")));
   await assertSucceeds(getDoc(doc(studentDb, "settings", "website")));
 
