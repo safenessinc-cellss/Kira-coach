@@ -1,12 +1,14 @@
 import { readFileSync } from "node:fs";
 import { initializeTestEnvironment, assertFails, assertSucceeds } from "@firebase/rules-unit-testing";
 import { doc, getDoc, setDoc, Timestamp } from "firebase/firestore";
+import { ref, uploadBytes } from "firebase/storage";
 
 const projectId = "demo-kira-rules";
 const rules = readFileSync("firestore.rules", "utf8");
 const env = await initializeTestEnvironment({
   projectId,
   firestore: { rules, host: "127.0.0.1", port: 8080 },
+  storage: { rules: readFileSync("storage.rules", "utf8"), host: "127.0.0.1", port: 9199 },
 });
 const now = Timestamp.now();
 
@@ -32,6 +34,7 @@ try {
       content: "Mi entrada",
       createdAt: now,
     });
+    await setDoc(doc(db, "users", "coach-approved"), { uid: "coach-approved", email: "coach-approved@example.test", role: "coach", approvalStatus: "approved", createdAt: now });
     await setDoc(doc(db, "users", "student-a"), {
       uid: "student-a",
       email: "student@example.test",
@@ -94,6 +97,15 @@ try {
 
   await assertFails(getDoc(doc(studentDb, "settings", "private-config")));
   await assertSucceeds(getDoc(doc(studentDb, "settings", "website")));
+
+  const studentStorage = env.authenticatedContext("student-a", { email: "student@example.test", email_verified: true }).storage();
+  const coachStorage = env.authenticatedContext("coach-approved", { email: "coach-approved@example.test", email_verified: true }).storage();
+  const adminStorage = env.authenticatedContext("admin-owner", { email: "safeness.c.a@gmail.com", email_verified: true }).storage();
+  const tinyPng = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+  await assertFails(uploadBytes(ref(studentStorage, "website/forbidden.png"), tinyPng, { contentType: "image/png" }));
+  await assertSucceeds(uploadBytes(ref(adminStorage, "website/brand.png"), tinyPng, { contentType: "image/png" }));
+  await assertSucceeds(uploadBytes(ref(coachStorage, "coaches/coach-approved/profile.png"), tinyPng, { contentType: "image/png" }));
+  await assertFails(uploadBytes(ref(coachStorage, "coaches/another-coach/profile.png"), tinyPng, { contentType: "image/png" }));
 
   console.log("Firestore security rules tests passed.");
 } finally {
