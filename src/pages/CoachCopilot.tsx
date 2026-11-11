@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { auth } from '../firebase';
 import { Bot, Sparkles, Send, BookOpen, MessageSquare, ShieldCheck, Check, Lightbulb } from 'lucide-react';
 
 export function CoachCopilot() {
@@ -28,9 +29,11 @@ Genera una respuesta de excelencia académica, estructurada y lista para usar:
 - Si es "ontological_question": Formula 5 preguntas poderosas que desafíen los juicios y declaraciones del coachee sin inducir respuestas.
 - Si es "feedback_draft": Redacta una retroalimentación constructiva, reconociendo fortalezas y proponiendo un compromiso medible.`;
 
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error('Inicia sesión para utilizar Coach Copilot.');
       const res = await fetch('/api/ai/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
         body: JSON.stringify({ prompt })
       });
 

@@ -1,3 +1,5 @@
+import { auth } from '../firebase';
+
 /**
  * KIRA 2.1 - Client AI Proxy helper
  * Routes AI calls securely to server-side endpoints on Node.js (/api/ai/*)
@@ -11,9 +13,11 @@ export async function generateContentServer(
   systemInstruction?: string
 ): Promise<string> {
   try {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) return '';
     const res = await fetch('/api/ai/generate', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
       body: JSON.stringify({ prompt, jsonMode, systemInstruction })
     });
 
