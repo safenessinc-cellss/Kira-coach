@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, where, getDocs, addDoc, onSnapshot, doc, updateDoc, orderBy, limit } from 'firebase/firestore';
 import { useAuth } from '../hooks/useAuth';
 import { cn } from '../lib/utils';
@@ -139,9 +139,11 @@ export function Dashboard() {
   const handleStripeCheckout = async (course: any) => {
     if(!user) return;
     try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error('Inicia sesión para comprar.');
       const resp = await fetch('/api/create-checkout-session', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
         body: JSON.stringify({
           courseId: course.id,
           userId: user.uid,
@@ -149,10 +151,13 @@ export function Dashboard() {
           title: course.title
         })
       });
+      if (!resp.ok) throw new Error('Los pagos están temporalmente deshabilitados mientras se valida la pasarela.');
       const { url } = await resp.json();
+      if (!url) throw new Error('No se recibió una URL de pago válida.');
       window.location.href = url;
     } catch(e) {
       console.error('Stripe Redirect Error:', e);
+      alert('La pasarela de pago aún no está habilitada para producción.');
     }
   };
 
@@ -593,6 +598,8 @@ export function Journal() {
         Nudge: [Tu sugerencia de acción proactiva]
       `;
 
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error('Inicia sesión para utilizar KIRA IA.');
       const res = await fetch('/api/ai/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
