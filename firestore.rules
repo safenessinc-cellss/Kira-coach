@@ -246,16 +246,13 @@ service cloud.firestore {
     match /users/{userId} {
       // Read: Public can see ALL coach profiles (needed for directory query). Users can read their own. Admins all.
       // And authenticated users can read profiles for chats etc.
-      allow read: if isAdmin() || isCurrentUser(userId) || (isAuthenticated() && resource.data.role == 'coach' && resource.data.approvalStatus == 'approved');
+      allow read: if isAdmin() || isCurrentUser(userId) || (isAuthenticated() && resource.data.role == 'coach' && resource.data.approvalStatus == 'approved') || (isApprovedCoach() && resource.data.registeredByCoach == request.auth.uid);
       
       // Create: Users can create their own profile. Only admins can create an admin role.
       allow create: if isAuthenticated() && isCurrentUser(userId) && isValidUser() && 
                     ((request.resource.data.role == 'admin' && isAdmin()) ||
                      (request.resource.data.role == 'alumno' && request.resource.data.approvalStatus == 'pending' && request.resource.data.requestedRole in ['coach', 'alumno']));
       
-      // Special: Allow coaches to create/refer new students
-      allow create: if isApprovedCoach() && isValidUser() && request.resource.data.role == 'alumno';
-                     
       // Update: Users can update their profile but NOT their role or approvalStatus. Admins can update anything.
       allow update: if isAuthenticated() && isValidUser() &&
                     ((isAdmin()) || 
@@ -274,7 +271,7 @@ service cloud.firestore {
     
     match /enrollments/{enrollmentId} {
       allow read: if isAdmin() || (isAuthenticated() && (resource.data.userId == request.auth.uid || (exists(/databases/$(database)/documents/courses/$(resource.data.courseId)) && get(/databases/$(database)/documents/courses/$(resource.data.courseId)).data.coachId == request.auth.uid)));
-      allow create: if isAuthenticated() && isValidEnrollment() && request.resource.data.progress == 0 && exists(/databases/$(database)/documents/courses/$(request.resource.data.courseId)) && (isAdmin() || (isApprovedCoach() && get(/databases/$(database)/documents/courses/$(request.resource.data.courseId)).data.coachId == request.auth.uid) || (request.resource.data.userId == request.auth.uid && get(/databases/$(database)/documents/courses/$(request.resource.data.courseId)).data.status == 'published' && get(/databases/$(database)/documents/courses/$(request.resource.data.courseId)).data.price <= 0));
+      allow create: if isAuthenticated() && isValidEnrollment() && request.resource.data.progress == 0 && exists(/databases/$(database)/documents/courses/$(request.resource.data.courseId)) && (isAdmin() || (request.resource.data.userId == request.auth.uid && get(/databases/$(database)/documents/courses/$(request.resource.data.courseId)).data.status == 'published' && get(/databases/$(database)/documents/courses/$(request.resource.data.courseId)).data.price <= 0));
       allow update: if isAuthenticated() && isValidEnrollment() && areImmutableFieldsUnchanged(['userId', 'courseId', 'createdAt']) && (isAdmin() || (isCurrentUser(resource.data.userId) && request.resource.data.progress >= resource.data.progress && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['progress'])) || (isApprovedCoach() && exists(/databases/$(database)/documents/courses/$(resource.data.courseId)) && get(/databases/$(database)/documents/courses/$(resource.data.courseId)).data.coachId == request.auth.uid));
       allow delete: if isAdmin();
     }
@@ -344,7 +341,7 @@ service cloud.firestore {
 
     match /notifications/{id} {
       allow read: if isAuthenticated() && (isAdmin() || resource.data.userId == request.auth.uid);
-      allow create: if isAuthenticated() && isValidNotification() && request.resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && isValidNotification() && (request.resource.data.userId == request.auth.uid || (isApprovedCoach() && exists(/databases/$(database)/documents/users/$(request.resource.data.userId)) && get(/databases/$(database)/documents/users/$(request.resource.data.userId)).data.registeredByCoach == request.auth.uid));
       allow update: if isAuthenticated() && (isAdmin() || resource.data.userId == request.auth.uid);
       allow delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
     }
