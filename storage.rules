@@ -64,7 +64,7 @@ service firebase.storage {
         request.auth != null
         && request.auth.uid == uid
         && isApprovedCoach(uid)
-        && validMedia(50 * 1024 * 1024)
+        && (request.resource == null || validMedia(50 * 1024 * 1024))
       );
     }
 
