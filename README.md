@@ -19,8 +19,8 @@ Esta rama apunta al proyecto Firebase de referencia `kira2-a6a20`. La configurac
 4. Prueba reglas con el emulador antes de aplicarlas:
    ```bash
    firebase use kira2-a6a20
-   firebase emulators:exec --only firestore --project demo-kira-rules "npm run test:rules"
-   firebase deploy --only firestore:rules
+   firebase emulators:exec --only firestore,storage --project demo-kira-rules "npm run test:rules"
+   firebase deploy --only firestore:rules,storage
    ```
 5. Los diarios son privados para su propietario. Los roles Coach/Admin no se conceden desde el navegador. Las matrículas pagadas, ventas y transacciones solo se registran desde un backend/webhook confiable.
 
@@ -37,7 +37,7 @@ Las solicitudes de IA requieren Firebase ID token y tienen límite por usuario. 
 Los endpoints de checkout permanecen deshabilitados hasta validar precios desde Firestore, implementar webhooks firmados e idempotencia. No se simulan cobros ni se registran ventas desde el cliente.
 
 ## Storage
-El código usa prefijos de carga dinámicos. No se deben desplegar reglas genéricas permisivas. Antes de habilitar cargas en producción, inventariar todos los prefijos y definir reglas por propietario/rol, tamaño y MIME. Las reglas de Storage requieren esa auditoría específica.
+Se añadieron reglas para los prefijos identificados en la aplicación: `website`, `promotions`, `marketplace/pdfs`, `pills/audio`, `coaches/{uid}` y `courses/{uid}`. Las cargas de sitio y catálogo quedan reservadas al administrador; los archivos de Coach/Cursos requieren que el Coach autenticado sea propietario y esté aprobado. Se aplican límites de tamaño y tipo MIME. Si se incorpora otro `folderPath`, debe añadirse una regla explícita antes de usarlo en producción.
 
 ## Vercel y dominio
 Build: `npm run build`; salida: `dist`; API Node: `server.ts`. Asocia `kira.coach` y `www.kira.coach` al proyecto Vercel correcto, valida DNS/TLS y ejecuta smoke tests. Cambiar archivos del repositorio no reasigna automáticamente el dominio.
