@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { GoogleGenAI, Modality } from "@google/genai";
+
 import { collection, query, where, orderBy, limit, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase';
+import { auth, db } from '../firebase';
 import { useAuth } from '../hooks/useAuth';
 import { Mic, MicOff, Brain, Sparkles, AlertCircle, FileText, Activity, User, MessageSquare, Target, TrendingUp, Zap, History } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -107,45 +107,9 @@ export default function SessionIntelligence() {
   `;
 
   const startSession = async () => {
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      
-      const sessionPromise = ai.live.connect({
-        model: "gemini-3.1-flash-live-preview",
-        config: {
-          responseModalities: [Modality.AUDIO],
-          systemInstruction,
-          inputAudioTranscription: {},
-        },
-        callbacks: {
-          onopen: () => {
-            console.log("Sesión de IA iniciada");
-            startAudioCapture();
-          },
-          onmessage: (msg: any) => {
-            // Manejar transcripciones entrantes
-            if (msg.serverContent?.modelTurn?.parts) {
-              const text = msg.serverContent.modelTurn.parts[0]?.text;
-              if (text) processIAMessage(text);
-            }
-            
-            // Si hay transcripción del usuario (Cliente/Coach local)
-            const userText = msg.inputAudioTranscription?.text;
-            if (userText) {
-              processUserTranscription(userText);
-            }
-          }
-        }
-      });
-
-      sessionRef.current = await sessionPromise;
-      setIsRecording(true);
-      setStatus('running');
-    } catch (error) {
-      console.warn("Notice: Live audio session connection not active, using simulated real-time mode:", error);
-      setIsRecording(true);
-      setStatus('running');
-    }
+    setIsRecording(false);
+    setStatus('idle');
+    alert('La voz Gemini Live está temporalmente desactivada para proteger la clave API. Puedes introducir la transcripción y generar el análisis mediante el servidor autenticado.');
   };
 
   const startAudioCapture = async () => {
@@ -238,7 +202,6 @@ export default function SessionIntelligence() {
 
   const generateSummary = async () => {
     if (!user) return;
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     const fullTranscript = messages.map(m => `${m.speaker}: ${m.text}`).join('\n');
     
     const prompt = `Actúa como un Psicólogo Organizacional y Coach de Alto Rendimiento. Analiza esta sesión de coaching de Kira Coach.
@@ -273,9 +236,11 @@ export default function SessionIntelligence() {
     }`;
 
     try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error('Inicia sesión para analizar esta sesión.');
       const res = await fetch('/api/ai/analyze-session', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
         body: JSON.stringify({ messages })
       });
 
@@ -304,7 +269,7 @@ export default function SessionIntelligence() {
       if (user?.uid) {
         await addDoc(collection(db, 'sessions'), {
           userId: user.uid,
-          coachId: 'kira-ai',
+          coachId: user.uid,
           transcript: messages,
           analysis: data,
           createdAt: serverTimestamp()
