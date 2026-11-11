@@ -42,36 +42,10 @@ export function CoachDashboard() {
       const unsub = onSnapshot(doc(db, 'users', user.uid), (d) => {
         if(d.exists()) setProfile(d.data());
       });
-      handlePaymentSuccess();
       return () => unsub();
     }
   }, [user]);
 
-  const handlePaymentSuccess = async () => {
-    const success = searchParams.get('success');
-    const type = searchParams.get('type');
-    const amount = searchParams.get('amount');
-
-    if (success === 'true' && type === 'coach_membership' && user) {
-      try {
-        await updateDoc(doc(db, 'users', user.uid), {
-          membershipStatus: 'active',
-          membershipPaidAt: new Date(),
-          role: 'coach'
-        });
-        await addDoc(collection(db, 'transactions'), {
-          userId: user.uid,
-          amount: Number(amount),
-          type: 'coach_membership',
-          createdAt: new Date()
-        });
-        setSearchParams({});
-      } catch (e) {
-        console.error('Error recording membership success:', e);
-      }
-    }
-  };
-  
   const isApproved = profile?.approvalStatus === 'approved';
   const hasMembership = profile?.membershipStatus === 'active';
 
@@ -1258,48 +1232,7 @@ function CoachRegisterClient() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    try {
-      // 1. Create User Document (or Update if exists - simplified for demo: always create reference)
-      const userRef = await addDoc(collection(db, 'users'), {
-        displayName: formData.name,
-        email: formData.email,
-        role: 'alumno',
-        createdAt: new Date(),
-        registeredByCoach: user?.uid,
-        points: 0,
-        status: 'awaiting_login'
-      });
-
-      // 2. Enroll in course if selected
-      if (formData.courseId) {
-        await addDoc(collection(db, 'enrollments'), {
-          userId: userRef.id,
-          courseId: formData.courseId,
-          progress: 0,
-          enrolledAt: new Date()
-        });
-      }
-
-      // 3. Create initial notification
-      await addDoc(collection(db, 'notifications'), {
-        userId: userRef.id,
-        title: '¡Bienvenido a Kira Coach!',
-        message: `Has sido registrado por tu coach. Completa tu primer diario hoy.`,
-        read: false,
-        createdAt: new Date(),
-        type: 'system'
-      });
-
-      setSuccess(true);
-      setFormData({ name: '', email: '', courseId: '' });
-      setTimeout(() => setSuccess(false), 3000);
-    } catch (e) {
-      console.error(e);
-      setError('Error registrando alumno.');
-    } finally {
-      setLoading(false);
-    }
+    setError('El alta manual de perfiles está desactivada. El alumno debe crear su cuenta con Google; un administrador validará la relación Coach/Alumno antes de habilitar el acceso.');
   };
 
   return (
