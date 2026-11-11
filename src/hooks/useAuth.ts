@@ -12,6 +12,7 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    localStorage.removeItem('kira_active_session_user');
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
         setUser(null);
@@ -97,10 +98,12 @@ export function useAuth() {
   };
 
   const logout = async () => {
-    await signOut(auth);
-    sessionStorage.removeItem('requestedRole');
-    setUser(null);
-    setRole('alumno');
+    try { await signOut(auth); } finally {
+      sessionStorage.removeItem('requestedRole');
+      localStorage.removeItem('kira_active_session_user');
+      setUser(null);
+      setRole('alumno');
+    }
   };
 
   return { user, role, loading, login, logout };
