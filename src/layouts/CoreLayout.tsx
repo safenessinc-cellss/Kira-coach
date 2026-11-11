@@ -1,0 +1,45 @@
+// src/layouts/CoreLayout.tsx
+import { Navigate, Outlet } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
+import { AIChat } from '../components/AIChat';
+import { ChatWidget } from '../components/ChatWidget'; // ✅ IMPORTAR
+import { Loader2 } from 'lucide-react';
+import { PushNotificationManager } from '../components/PushNotificationManager';
+
+export function CoreLayout() {
+  const { loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <Loader2 className="w-8 h-8 animate-spin text-teal-500" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
+      <PushNotificationManager />
+      <Outlet />
+      <footer className="mt-auto py-4 text-center text-[10px] text-slate-500 tracking-wide" aria-label="Créditos de desarrollo">
+        Creado por <span className="font-semibold text-slate-600">SAFENESS.INC</span>
+      </footer>
+      <AIChat />
+      {/* ✅ CHAT WIDGET MONTADO AQUÍ */}
+      <ChatWidget />
+    </div>
+  );
+}
+
+export function ProtectedRoute({ allowedRoles }: { allowedRoles?: string[] }) {
+  const { user, role, loading } = useAuth();
+
+  if (loading) return null;
+  if (!user) return <Navigate to="/" replace />;
+  
+  if (allowedRoles && (!role || !allowedRoles.includes(role))) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <Outlet />;
+}
