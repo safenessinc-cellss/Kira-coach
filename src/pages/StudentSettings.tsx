@@ -91,7 +91,6 @@ export function StudentSettings() {
                 Los permisos de Coach, HR y Administrador solo pueden ser asignados o aprobados por un administrador autorizado.
               </p>
             </div>
-            </div>
           </div>
 
           <div className="pt-4 border-t border-white/8 flex items-center justify-between">
