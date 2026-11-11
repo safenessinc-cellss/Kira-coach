@@ -32,6 +32,26 @@ try {
   await assertFails(updateDoc(doc(studentDb, "users", "student-a"), { companyId: "company-b" }));
   await assertFails(updateDoc(doc(studentDb, "users", "student-a"), { staffPermissions: ["system"] }));
 
+  const coachApplicantDb = env.authenticatedContext("coach-applicant", { email: "coach@example.test" }).firestore();
+  await assertFails(setDoc(doc(coachApplicantDb, "users", "coach-applicant"), {
+    uid: "coach-applicant",
+    email: "coach@example.test",
+    role: "coach",
+    approvalStatus: "approved",
+    requestedRole: "coach",
+    createdAt: serverTimestamp()
+  }));
+  await assertSucceeds(setDoc(doc(coachApplicantDb, "users", "coach-applicant"), {
+    uid: "coach-applicant",
+    email: "coach@example.test",
+    role: "alumno",
+    approvalStatus: "pending",
+    requestedRole: "coach",
+    createdAt: serverTimestamp(),
+    points: 0,
+    theme: "teal"
+  }));
+
   const companyDb = env.authenticatedContext("company-admin", { email: "hr@example.test" }).firestore();
   await assertSucceeds(getDoc(doc(companyDb, "companies", "company-a", "wellbeingAggregates", "2026-11")));
   await assertSucceeds(getDoc(doc(companyDb, "companies", "company-a", "members", "company-admin")));
