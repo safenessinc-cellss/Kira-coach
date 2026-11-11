@@ -602,7 +602,7 @@ export function Journal() {
       if (!idToken) throw new Error('Inicia sesión para utilizar KIRA IA.');
       const res = await fetch('/api/ai/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
         body: JSON.stringify({ prompt: analyticPrompt })
       });
 
