@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # KIRA 2.1 Unificada — by Safeness Inc.
 
 Plataforma SaaS integral de educación, bienestar adaptativo, coaching ontológico y CRM con Inteligencia Artificial.
@@ -87,3 +88,6 @@ Copia `.env.example` a `.env` y configura tus credenciales reales:
 - Los journals personales de los alumnos nunca se exponen al Portal HR ni a los Coaches.
 - Las trazas de auditoría (`activity_logs`) registran únicamente metadatos operacionales sin almacenar texto confidencial.
 - Toda transacción procesada incluye verificación de idempotencia y cálculo del split de liquidación (70/30).
+=======
+# Kira-coach
+>>>>>>> 0c3cb891df6064be99dd908761c5c6e6a3ff0e1a
