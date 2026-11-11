@@ -49,7 +49,6 @@ export function useAuth() {
             ...profileData,
             role: effectiveRole,
             requestedRole: pendingCoach ? 'coach' : profileData.requestedRole,
-            uid: firebaseUser.uid,
           };
           setUser(resolved);
           setRole(effectiveRole as UserRole);
