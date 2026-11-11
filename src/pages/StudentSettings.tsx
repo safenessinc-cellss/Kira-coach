@@ -4,7 +4,7 @@ import { ShieldCheck, User, Palette, Info, ExternalLink, Save, CheckCircle2 } fr
 import { Logo } from '../components/Brand';
 
 export function StudentSettings() {
-  const { user, switchRole } = useAuth();
+  const { user } = useAuth();
   const [displayName, setDisplayName] = useState(user?.displayName || '');
   const [email] = useState(user?.email || '');
   const [activeTab, setActiveTab] = useState<'perfil' | 'acerca_de' | 'privacidad'>('perfil');
@@ -82,24 +82,15 @@ export function StudentSettings() {
 
             <div>
               <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block mb-1.5">
-                Cambio Rápido de Rol (Entorno de Verificación)
+                Rol asignado por administración
               </label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {(['alumno', 'coach', 'admin', 'hr_admin'] as const).map((r) => (
-                  <button
-                    type="button"
-                    key={r}
-                    onClick={() => switchRole(r)}
-                    className={`py-2 px-3 rounded-xl text-xs font-bold uppercase border transition-all ${
-                      user?.role === r
-                        ? 'bg-[#7C5CFF] text-white border-[#7C5CFF]'
-                        : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    {r}
-                  </button>
-                ))}
+              <div className="w-full px-4 py-3 rounded-2xl bg-white/5 border border-white/10 text-sm text-white">
+                {user?.role || 'alumno'}
               </div>
+              <p className="mt-2 text-[11px] text-slate-400">
+                Los permisos de Coach, HR y Administrador solo pueden ser asignados o aprobados por un administrador autorizado.
+              </p>
+            </div>
             </div>
           </div>
 
