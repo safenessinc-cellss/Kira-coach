@@ -3,6 +3,7 @@ import { X, Send, Sparkles } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAuth } from '../hooks/useAuth';
 import { useLocation } from 'react-router-dom';
+import { auth } from '../firebase';
 import ReactMarkdown from 'react-markdown';
 
 export function AIChat() {
@@ -59,9 +60,11 @@ export function AIChat() {
     try {
       const contextualContext = getContextualPreamble();
 
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error('Inicia sesión para utilizar KIRA IA.');
       const res = await fetch('/api/ai/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
         body: JSON.stringify({
           messages: newMsgs,
           context: contextualContext
