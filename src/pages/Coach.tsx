@@ -82,7 +82,7 @@ export function CoachDashboard() {
       if (!idToken) throw new Error('Inicia sesión para continuar.');
       const resp = await fetch('/api/create-checkout-session', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
         body: JSON.stringify({
           userId: user.uid,
           amount: 49.99,
