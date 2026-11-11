@@ -65,7 +65,7 @@ async function verifyFirebaseIdToken(token: string): Promise<VerifiedFirebaseUse
 }
 
 async function requireFirebaseUser(req: express.Request, res: express.Response): Promise<VerifiedFirebaseUser | null> {
-  const match = (req.headers.authorization || "").match(/^Bearer\\s+(.+)$/i);
+  const match = (req.headers.authorization || "").match(/^Bearer\s+(.+)$/i);
   if (!match) { res.status(401).json({ error: "Debes iniciar sesión." }); return null; }
   const user = await verifyFirebaseIdToken(match[1]);
   if (!user) { res.status(401).json({ error: "La sesión no es válida o ha caducado." }); return null; }
